@@ -1,5 +1,5 @@
 # Cloudflare Workers configuration
-name = "anti-bot-gateway"
+name = "filtering"
 main = "src/worker.js"
 compatibility_date = "2023-12-01"
 
