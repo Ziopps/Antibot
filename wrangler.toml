@@ -5,7 +5,7 @@ compatibility_date = "2023-12-01"
 
 [env.production]
 name = "filtering"
-route = "https://https://kbnote.online/"
+route = "https://kbnote.online"
 zone_id = "e5f4139af9ab971eff1d739cce6d2d54"
 
 [[kv_namespaces]]
