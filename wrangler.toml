@@ -21,7 +21,7 @@ id = "009ad6dea9ed48cea0573d30207fe937"
 # Vars (Environment Variables)
 [env.production.vars]
 TURNSTILE_SITE_KEY = "0x4AAAAAABlZpUYDUKYDODho"
-LANDING_URL = "https://your-landing-page.com"
+LANDING_URL = "https://landing-test-page.com"
 
 [observability.logs]
 enabled = true
