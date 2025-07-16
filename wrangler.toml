@@ -6,6 +6,7 @@ compatibility_date = "2023-12-01"
 
 # Default environment settings
 [env.production]
+name = "filtering"
 zone_id = "e5f4139af9ab971eff1d739cce6d2d54" # Zone ID dari salah satu domain, biasanya cukup satu saja
 account_id = "4db9d5eb1b4f8e83c0f75db2f475c0d0"
 
