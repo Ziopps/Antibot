@@ -1,0 +1,20 @@
+# Cloudflare Workers configuration
+name = "anti-bot-gateway"
+main = "src/worker.js"
+compatibility_date = "2023-12-01"
+
+[env.production]
+name = "anti-bot-gateway-prod"
+
+[[kv_namespaces]]
+binding = "ANTI_BOT_KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+[vars]
+TURNSTILE_SITE_KEY = "your-turnstile-site-key"
+LANDING_URL = "https://your-landing-page.com"
+
+[secrets]
+TURNSTILE_SECRET_KEY = "your-turnstile-secret-key"
+WEBHOOK_URL = "https://your-webhook-endpoint.com/log"
