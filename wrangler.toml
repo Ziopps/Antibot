@@ -12,9 +12,9 @@ id = "009ad6dea9ed48cea0573d30207fe937"
 preview_id = "your-preview-kv-namespace-id"
 
 [vars]
-TURNSTILE_SITE_KEY = "your-turnstile-site-key"
+TURNSTILE_SITE_KEY = "0x4AAAAAABlZpUYDUKYDODho"
 LANDING_URL = "https://your-landing-page.com"
 
 [secrets]
-TURNSTILE_SECRET_KEY = "your-turnstile-secret-key"
+TURNSTILE_SECRET_KEY = "0x4AAAAAABlZpVdzI9lofsMHx0mGnL8JeKA"
 WEBHOOK_URL = "https://your-webhook-endpoint.com/log"
