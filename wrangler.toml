@@ -8,7 +8,7 @@ name = "anti-bot-gateway-prod"
 
 [[kv_namespaces]]
 binding = "ANTI_BOT_KV"
-id = "your-kv-namespace-id"
+id = "009ad6dea9ed48cea0573d30207fe937"
 preview_id = "your-preview-kv-namespace-id"
 
 [vars]
