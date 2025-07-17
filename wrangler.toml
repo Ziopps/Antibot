@@ -1,21 +1,44 @@
 name = "filtering"
 main = "src/worker.js"
-compatibility_date = "2023-12-01"
+compatibility_date = "2024-07-18"
+node_compat = true
 
-# Multiple routes (multi-host, multi-subdomain)
-
-
-# Default environment settings
 [env.production]
-zone_id = "e5f4139af9ab971eff1d739cce6d2d54" # Zone ID dari salah satu domain, biasanya cukup satu saja
+zone_id = "e5f4139af9ab971eff1d739cce6d2d54"
 account_id = "4db9d5eb1b4f8e83c0f75db2f475c0d0"
 
-# KV Namespace
-[[env.production.kv_namespaces]]
+# Cache & Config Storage
+[[kv_namespaces]]
 binding = "ANTI_BOT_KV"
 id = "009ad6dea9ed48cea0573d30207fe937"
 
-# Vars (Environment Variables)
-[env.production.vars]
+[[kv_namespaces]]
+binding = "ACCESS_LOGS"
+id = "NEW_KV_ID_FOR_ACCESS_LOGS"  # Buat di dashboard
+
+[[kv_namespaces]]
+binding = "ERROR_LOGS"
+id = "NEW_KV_ID_FOR_ERROR_LOGS"   # Buat di dashboard
+
+[[kv_namespaces]]
+binding = "CONFIG_KV"
+id = "NEW_KV_ID_FOR_CONFIG"       # Buat di dashboard
+
+# D1 Databases
+[[d1_databases]]
+binding = "CACHE_DB"
+database_name = "antibot-cache"
+database_id = "NEW_D1_ID_FOR_CACHE"  # Buat di dashboard
+
+[[d1_databases]]
+binding = "ANALYTICS_DB"
+database_name = "antibot-analytics"
+database_id = "NEW_D1_ID_FOR_ANALYTICS" # Buat di dashboard
+
+# Environment Variables
+[vars]
 TURNSTILE_SITE_KEY = "0x4AAAAAABlZpUYDUKYDODho"
+TURNSTILE_SECRET_KEY = "YOUR_SECRET_KEY_HERE"  # Dapatkan dari Turnstile
+HASH_SALT = "GENERATE_RANDOM_32_CHAR_STRING"   # Gunakan generator online
 LANDING_URL = "https://your-landing-page.com"
+MAX_FAILED_CHALLENGES = "5"
