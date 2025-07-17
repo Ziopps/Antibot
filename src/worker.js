@@ -1,18 +1,26 @@
 // Advanced Anti-Bot Gateway for Cloudflare Workers
 // Optimized for landing page protection with < 100ms response time
 
+const crypto = globalThis.crypto || require('crypto').webcrypto;
+
 class AntiBot {
   constructor(env, ctx) {
+    // Validasi environment variables
+    if (!env.TURNSTILE_SECRET_KEY) throw new Error("Missing TURNSTILE_SECRET_KEY");
+    if (!env.TURNSTILE_SITE_KEY) throw new Error("Missing TURNSTILE_SITE_KEY");
+    if (!env.ANTI_BOT_KV) throw new Error("ANTI_BOT_KV binding is required");
+    
     this.env = env;
     this.ctx = ctx;
     this.maxScore = 70; // Threshold for blocking
     this.suspiciousScore = 40; // Threshold for Turnstile challenge
     this.cacheTime = 3600; // 1 hour cache
     this.allowedCountries = ['ID']; // Indonesia only
-    this.startTime = Date.now();
   }
 
   async handleRequest(request) {
+    this.startTime = Date.now(); // Set start time per request
+    
     try {
       const url = new URL(request.url);
       
@@ -44,6 +52,7 @@ class AntiBot {
   }
 
   async detectBot(request) {
+    const startTime = Date.now(); // Start time for this function
     const clientIP = this.getClientIP(request);
     const userAgent = request.headers.get('User-Agent') || '';
     const fingerprint = await this.generateFingerprint(request);
@@ -59,7 +68,8 @@ class AntiBot {
     const reasons = [];
 
     // 1. Country check
-    const country = request.cf?.country || 'UNKNOWN';
+    const cf = request.cf || {};
+    const country = cf.country || 'UNKNOWN';
     if (!this.allowedCountries.includes(country)) {
       score += 100;
       reasons.push(`blocked_country:${country}`);
@@ -85,13 +95,16 @@ class AntiBot {
     score += fpScore.score;
     if (fpScore.suspicious) reasons.push(`suspicious_fingerprint:${fpScore.reason}`);
 
-    // 6. Timing analysis
-    const timingScore = this.analyzeTimings(request);
+    // 6. Timing analysis (using the time taken by this function)
+    const processingTime = Date.now() - startTime;
+    const timingScore = this.analyzeTimings(processingTime);
     score += timingScore.score;
     if (timingScore.suspicious) reasons.push(`suspicious_timing:${timingScore.reason}`);
 
     // 7. ASN analysis
-    const asnScore = this.analyzeASN(request.cf?.asn, request.cf?.asOrganization);
+    const asn = cf.asn || 0;
+    const asOrganization = cf.asOrganization || '';
+    const asnScore = this.analyzeASN(asn, asOrganization);
     score += asnScore.score;
     if (asnScore.suspicious) reasons.push(`suspicious_asn:${asnScore.reason}`);
 
@@ -222,22 +235,33 @@ class AntiBot {
       }
     }
 
-    // Check for rate limiting
+    // Check for rate limiting using atomic operations
     const rateLimitKey = `rate:${clientIP}`;
-    const currentRequests = await this.env.ANTI_BOT_KV.get(rateLimitKey);
-    if (currentRequests) {
-      const count = parseInt(currentRequests);
-      if (count > 10) { // More than 10 requests per minute
-        score += 40;
-        reasons.push('rate_limit');
+    let currentCount = 1;
+    
+    // Try to create the key if not exists
+    const result = await this.env.ANTI_BOT_KV.put(
+      rateLimitKey, 
+      "1", 
+      { 
+        expirationTtl: 60, 
+        onlyIfEmpty: true 
+      }
+    );
+    
+    if (result === null) {
+      // Key already exists, increment
+      const existing = await this.env.ANTI_BOT_KV.get(rateLimitKey);
+      if (existing) {
+        currentCount = parseInt(existing) + 1;
+        await this.env.ANTI_BOT_KV.put(rateLimitKey, currentCount.toString(), { expirationTtl: 60 });
       }
     }
-
-    // Update rate limit counter
-    await this.env.ANTI_BOT_KV.put(rateLimitKey, 
-      currentRequests ? (parseInt(currentRequests) + 1).toString() : '1', 
-      { expirationTtl: 60 }
-    );
+    
+    if (currentCount > 10) {
+      score += 40;
+      reasons.push('rate_limit');
+    }
 
     return { score, suspicious: score > 0, reason: reasons.join(',') };
   }
@@ -265,11 +289,9 @@ class AntiBot {
     return { score, suspicious: score > 0, reason: reasons.join(',') };
   }
 
-  analyzeTimings(request) {
+  analyzeTimings(processingTime) {
     let score = 0;
     const reasons = [];
-
-    const processingTime = Date.now() - this.startTime;
     
     // Too fast (likely automated)
     if (processingTime < 100) {
@@ -309,17 +331,13 @@ class AntiBot {
     const acceptLanguage = request.headers.get('Accept-Language') || '';
     const acceptEncoding = request.headers.get('Accept-Encoding') || '';
     
-    const fingerprint = `${clientIP}:${userAgent}:${acceptLanguage}:${acceptEncoding}`;
-    
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < fingerprint.length; i++) {
-      const char = fingerprint.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    
-    return Math.abs(hash).toString(16);
+    const data = `${clientIP}:${userAgent}:${acceptLanguage}:${acceptEncoding}`;
+    const encoder = new TextEncoder();
+    const dataBuffer = encoder.encode(data);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
   }
 
   getClientIP(request) {
@@ -352,6 +370,11 @@ class AntiBot {
 
   async handleTurnstileVerification(request) {
     try {
+      const contentType = request.headers.get('Content-Type');
+      if (!contentType || !contentType.includes('application/x-www-form-urlencoded')) {
+        return this.blockRequest(request, 'invalid_content_type', 100);
+      }
+
       const formData = await request.formData();
       const token = formData.get('cf-turnstile-response');
       
@@ -365,7 +388,7 @@ class AntiBot {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `secret=${this.env.TURNSTILE_SECRET_KEY}&response=${token}&remoteip=${this.getClientIP(request)}`
+        body: `secret=${encodeURIComponent(this.env.TURNSTILE_SECRET_KEY)}&response=${encodeURIComponent(token)}&remoteip=${encodeURIComponent(this.getClientIP(request))}`
       });
 
       const verifyResult = await verifyResponse.json();
@@ -499,22 +522,26 @@ class AntiBot {
       processingTime: Date.now() - this.startTime
     };
 
-    // Log to KV (for debugging)
-    await this.env.ANTI_BOT_KV.put(
-      `log:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`, 
-      JSON.stringify(logData),
-      { expirationTtl: 86400 } // 24 hours
-    );
-
-    // Optional: Log to external service (Google Sheets, etc.)
-    if (this.env.WEBHOOK_URL) {
-      this.ctx.waitUntil(
-        fetch(this.env.WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(logData)
-        }).catch(err => console.error('Webhook error:', err))
+    try {
+      // Log to KV (for debugging)
+      await this.env.ANTI_BOT_KV.put(
+        `log:${Date.now()}:${Math.random().toString(36).substring(2, 11)}`, 
+        JSON.stringify(logData),
+        { expirationTtl: 86400 } // 24 hours
       );
+
+      // Optional: Log to external service (Google Sheets, etc.)
+      if (this.env.WEBHOOK_URL) {
+        this.ctx.waitUntil(
+          fetch(this.env.WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(logData)
+          }).catch(err => console.error('Webhook error:', err))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to log access:', error);
     }
   }
 
@@ -528,11 +555,15 @@ class AntiBot {
       userAgent: request.headers.get('User-Agent') || ''
     };
 
-    await this.env.ANTI_BOT_KV.put(
-      `error:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`, 
-      JSON.stringify(errorData),
-      { expirationTtl: 86400 }
-    );
+    try {
+      await this.env.ANTI_BOT_KV.put(
+        `error:${Date.now()}:${Math.random().toString(36).substring(2, 11)}`, 
+        JSON.stringify(errorData),
+        { expirationTtl: 86400 }
+      );
+    } catch (err) {
+      console.error('Failed to log error:', err);
+    }
   }
 }
 
