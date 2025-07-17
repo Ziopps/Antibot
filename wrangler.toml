@@ -3,10 +3,7 @@ main = "src/worker.js"
 compatibility_date = "2023-12-01"
 
 # Multiple routes (multi-host, multi-subdomain)
-routes = [
-  "https://filtering.ryuazalin7.workers.dev/",
-  "https://gateway.kbnote.online/"
-]
+
 
 # Default environment settings
 [env.production]
