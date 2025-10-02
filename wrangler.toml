@@ -14,26 +14,26 @@ id = "NEW_KV_ID_FOR_ANTI_BOT_KV"
 
 [[kv_namespaces]]
 binding = "ACCESS_LOGS"
-id = "NEW_KV_ID_ACCES_LOGS"  # Buat di dashboard
+id = "NEW_KV_ID_ACCES_LOGS"  
 
 [[kv_namespaces]]
 binding = "ERROR_LOGS"
-id = "NEW_KV_ID_ERROR_LOGS"   # Buat di dashboard
+id = "NEW_KV_ID_ERROR_LOGS"  
 
 [[kv_namespaces]]
 binding = "CONFIG_KV"
-id = "NEW_KV_ID_FOR_CONFIG"       # Buat di dashboard
+id = "NEW_KV_ID_FOR_CONFIG"       
 
 # D1 Databases
 [[d1_databases]]
 binding = "CACHE_DB"
 database_name = "antibot-cache"
-database_id = "NEW_D1_ID_FOR_CACHE"  # Buat di dashboard
+database_id = "NEW_D1_ID_FOR_CACHE" 
 
 [[d1_databases]]
 binding = "ANALYTICS_DB"
 database_name = "antibot-analytics"
-database_id = "NEW_D1_ID_FOR_ANALYTICS" # Buat di dashboard
+database_id = "NEW_D1_ID_FOR_ANALYTICS" 
 
 # Environment Variables
 [vars]
