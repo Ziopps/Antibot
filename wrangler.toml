@@ -7,17 +7,17 @@ compatibility_date = "2023-12-01"
 # Default environment settings
 [env.production]
 name = "filtering"
-zone_id = "e5f4139af9ab971eff1d739cce6d2d54" # Zone ID dari salah satu domain, biasanya cukup satu saja
-account_id = "4db9d5eb1b4f8e83c0f75db2f475c0d0"
+zone_id = "" # Zone ID dari salah satu domain, biasanya cukup satu saja
+account_id = ""
 
 # KV Namespace
 [[env.production.kv_namespaces]]
 binding = "ANTI_BOT_KV"
-id = "009ad6dea9ed48cea0573d30207fe937"
+id = ""
 
 # Vars (Environment Variables)
 [env.production.vars]
-TURNSTILE_SITE_KEY = "0x4AAAAAABlZpUYDUKYDODho"
+TURNSTILE_SITE_KEY = ""
 LANDING_URL = "https://landing-test-page.com"
 
 [observability.logs]
