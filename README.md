@@ -1,48 +1,102 @@
-This project is a multi-layered anti-bot system built on Cloudflare Workers.
-It is designed to detect, challenge, or block automated traffic with minimal latency, while allowing legitimate users to pass through seamlessly.
+Antibot: a Cloudflare Workers-based anti-bot gateway adapted specifically for high-conversion funnels (landing pages, lead capture forms, checkout flows). The goal is to block or challenge malicious automated traffic while minimizing false positives and preserving conversion rates for legitimate users.
 
-The system uses a scoring mechanism, caching layers, and telemetry logging to evaluate incoming requests. It integrates with Cloudflare Turnstile for human verification when required.
+## Key Design Principles
 
----
+* Favor challenge over outright block for borderline cases.
+* Minimize friction for verified users by using short-lived verification caches.
+* Make thresholds adaptive and observable via telemetry.
+* Prioritize performance: low latency, batched cache operations, and static asset bypass.
+* Maintain privacy by hashing IPs and limiting stored PII.
 
-## Features
+## Example Configuration (Funnel Usage)
 
-* **Layered Bot Detection**
+This configuration is optimized as a baseline for funnel deployments.  
+Values can be adjusted later by reviewing telemetry logs collected in the database.
 
-  * User-Agent analysis (headless browsers, scrapers, automation tools).
-  * Header integrity checks (missing, spoofed, or automation-related headers).
-  * IP reputation and rate-limiting.
-  * Fingerprint tracking with TTL.
-  * ASN and hosting provider detection.
-  * Timing analysis for suspiciously fast requests.
-  * Country-based allow/deny rules.
+```js
+const DEFAULT_CONFIG = {
+  maxScore: 100,              // Only block when extremely confident
+  suspiciousScore: 60,       // Trigger challenge if >= 60
+  cacheTime: 14400,          // 4 hours for verified fingerprints
+  allowedCountries: ['ID','US','SG','MY','PH','VN','AU','GB'],
+  rateLimit: 30,             // slightly higher to avoid blocking bursts
+  rateLimitWindow: 60,       // seconds
+  fastRequestThreshold: 20,  // ms
+  fingerprintTTL: 86400,     // 24h
+  rateLimitTTL: 60,
+  staticAssetPattern: /\.(js|css|png|jpe?g|webp|gif|ico|svg|woff2?|ttf|eot|map|json|txt|webm|mp4|mp3)$/i,
+  highQualitySources: [
+    'facebook.com', 'facebookexternalhit.com',
+    'google.com', 'googleadservices.com', 'doubleclick.net',
+    't.co', 'tiktok.com', 'instagram.com', 'linkedin.com',
+    'ads.youtube.com', 'bing.com', 'whatsapp.com'
+  ]
+};
+```
 
-* **Performance Optimizations**
+Notes:
 
-  * Batching cache reads/writes.
-  * Multi-backend cache support (KV, Redis, D1).
-  * Pre-verified request bypassing.
-  * Static asset bypass.
+* `suspiciousScore` raised to reduce false positives — suspicious traffic will be challenged with Turnstile.
+* `maxScore` set conservatively high so only strongly malicious requests are blocked.
+* `cacheTime` increased so verified users have a smoother funnel experience.
+* `allowedCountries` expanded to match global campaigns — adjust to your campaign geography.
 
-* **Telemetry and Logging**
+## Funnel-Specific Adjustments and Best Practices
 
-  * Structured access logs.
-  * Error logging with stack traces.
-  * Support for KV, Redis, and D1 for analytics and storage.
+1. **Always prefer a challenge for suspicious traffic**
 
-* **Challenges**
+   * For funnels, present Cloudflare Turnstile rather than immediately blocking. This protects conversion.
 
-  * Suspicious requests are presented with Cloudflare Turnstile.
-  * Verified fingerprints are cached for faster future access.
+2. **Whitelist ad / tracking domains and landing referrers**
 
----
+   * Ensure ad platforms, click trackers, and redirectors used by campaigns are in `highQualitySources`.
 
-## Database Schema
+3. **Relax rate limits for known conversion flows**
 
-A recommended schema for storing telemetry, review queues, blocks, feedback, and error logs.
+   * Increase `rateLimit` for endpoints that legitimately receive many quick requests (e.g., payment webhooks should be handled differently).
+
+4. **Longer fingerprint TTL for funnels**
+
+   * Use longer `fingerprintTTL` to keep returning users verified across sessions (balance with privacy policy).
+
+5. **Graceful challenge UI**
+
+   * Present Turnstile on a lightweight intermediate page that explains why verification is required and continues to the funnel upon success.
+
+6. **Monitoring and rollback**
+
+   * Send all challenge and block events to telemetry and review queue.
+   * Implement alerts when conversion drops or challenge rate spikes, with an automatic rollback toggle.
+
+7. **A/B testing**
+
+   * Run A/B experiments (control vs. anti-bot enabled) to measure conversion impact.
+
+8. **Logs and privacy**
+
+   * Hash IPs and avoid storing PII. Document retention policies for telemetry and logs.
+
+## Detection Layers (summary)
+
+* Country allow/deny
+* User-Agent checks (headless, http clients)
+* Header completeness and security headers
+* IP reputation and ASN checks
+* Fingerprint usage and duplicates
+* Timing/behavioral analysis
+
+Each layer contributes to a weighted confidence score. For funnel usage, keep scores and weights conservative.
+
+## Telemetry and Review
+
+Telemetry is critical for tuning thresholds without damaging conversion. Use the provided schema to record events, queue suspicious items for manual review, and capture feedback for potential model improvements.
+
+### Database Schema
+
+The schema includes tables for telemetry, review queue, blocks, feedback, error logs, and cache (for D1 fallback). While the system is currently **rule-based**, the `feedback` table is intended for **future ML integration**. This allows storing human feedback and user reports that can later be used to adjust scoring logic or train models.
 
 ```sql
--- Telemetry
+-- Telemetry table
 CREATE TABLE telemetry (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,
@@ -86,7 +140,7 @@ CREATE TABLE blocks (
   country TEXT
 );
 
--- Feedback
+-- Feedback for ML (future use)
 CREATE TABLE feedback (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp TEXT NOT NULL,
@@ -112,7 +166,7 @@ CREATE TABLE error_log (
   country TEXT
 );
 
--- Cache (for D1 fallback)
+-- Cache table (if using D1 as cache fallback)
 CREATE TABLE cache (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -121,51 +175,63 @@ CREATE TABLE cache (
 CREATE INDEX idx_cache_expires ON cache(expires_at);
 ```
 
----
+## Suggested Metrics & Dashboards
 
-## Strengths
+* Verified vs challenged vs blocked rate
+* Conversion rate by bucket (verified/challenged/blocked)
+* Challenge pass rate (Turnstile success rate)
+* Blocks by reason (UA, headers, fingerprint, ASN, country)
+* Telemetry volume and processing latency
+* Alerts: sudden jump in challenges; conversion drop > X% over Y minutes
 
-* Multi-layered detection covers common bot signatures and patterns.
-* Performance-optimized with caching and batch operations.
-* Flexible storage backends (KV, Redis, D1).
-* Structured logging for analytics and monitoring.
-* Integration with Cloudflare Turnstile for human verification.
+## Future Plans
 
----
+Currently, detection is fully rule-based. Planned improvements include:
 
-## Known Limitations
+* **Feedback loop integration**: use the `feedback` table to refine scoring logic.
+* **Adaptive thresholds**: adjust `suspiciousScore` and `maxScore` dynamically based on telemetry.
+* **JA3/TLS fingerprinting**: add TLS-level fingerprints for stronger client identification.
+* **Behavioral signals**: incorporate interaction timing, request sequences, and browser features.
+* **Stronger fingerprints**: expand beyond headers to include environmental and protocol-level markers.
 
-* Thresholds (`suspiciousScore`, `maxScore`) are static and may need tuning per deployment.
-* ASN provider list is static and may become outdated.
-* Referrer whitelisting can be spoofed.
-* Fingerprinting method is simplistic and may be bypassed by advanced bots.
-* Timing checks may generate false positives for very fast legitimate connections.
+## Security and Privacy
 
----
-
-## Areas for Improvement
-
-* Implement adaptive thresholds using historical telemetry data.
-* Expand ASN and hosting provider detection with external feeds.
-* Strengthen fingerprinting by incorporating canvas, timezone, or TLS JA3 signatures.
-* Add machine learning feedback loop from the `feedback` table.
-* Improve country allow/deny logic with dynamic reputation scoring.
-* Add confidence scoring per detection layer instead of a flat score sum.
-
----
+* Hash IPs using a salted hash; store salt securely outside the DB.
+* Do not log PII (email, form payloads) into telemetry.
+* Implement retention and deletion policies for telemetry and logs.
+* Rate-limit access to logs and analytics dashboards.
 
 ## Deployment
 
-1. Clone the repository.
-2. Configure environment variables:
+1. Set environment variables for KV, Redis, D1, and secrets (HASH_SALT, TURNSTILE keys).
+2. Deploy Cloudflare Worker using Wrangler or the Cloudflare dashboard.
+3. Wire Turnstile for challenge endpoints.
+4. Configure analytics DB and retention policies.
 
-   * `KV_BOT_CACHE`, `KV_ACCESS_LOGS`, `KV_ERROR_LOGS`
-   * `REDIS_ENDPOINT`, `REDIS_TOKEN` (optional)
-   * `DB` / `ANALYTICS_DB` (optional, for D1)
-   * `HASH_SALT`
-3. Deploy to Cloudflare Workers.
-4. Set up Cloudflare Turnstile site key and secret for challenges.
+## Testing
 
----
+* Create automated tests for UA patterns, header omissions, fingerprint collisions, and rate-limiting behavior.
+* Run load tests against a staging funnel to measure latency impact.
+* Test Turnstile flows and verify cookies/session persistence across the funnel.
 
-Mau gue tambahin juga contoh **flow diagram (request → detection layers → decision → action)** ke README ini biar lebih jelas secara visual?
+## Contribution Guidelines
+
+* Use feature branches and open PRs for changes.
+* Include unit tests for detection rules when possible.
+* Label PRs that change scoring thresholds as `breaking` and require QA on staging funnel.
+* Add telemetry dashboards changes alongside detection changes.
+
+## Operational Playbook
+
+* If conversions drop significantly after a deploy, use the rollback flag to revert to previous config.
+* If challenge rate spikes, temporarily relax `suspiciousScore` and escalate investigation.
+* Maintain a review queue with human triage for false-positives.
+
+## Example: Funnel-Safe Decision Strategy
+
+1. Static assets bypass.
+2. High-quality referrers bypass.
+3. Run detection layers and compute score.
+4. If score >= `maxScore` (100): block and log to `blocks`.
+5. If score >= `suspiciousScore` (60): present Turnstile. Log to `telemetry` and `review_queue` if failed or disputed.
+6. Else: allow and cache fingerprint for faster access.
