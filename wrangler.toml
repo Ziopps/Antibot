@@ -1,24 +1,24 @@
-name = "filtering"
+name = "Antibot"
 main = "src/worker.js"
 compatibility_date = "2024-07-18"
 node_compat = true
 
 [env.production]
-zone_id = "e5f4139af9ab971eff1d739cce6d2d54"
-account_id = "4db9d5eb1b4f8e83c0f75db2f475c0d0"
+zone_id = ""
+account_id = ""
 
 # Cache & Config Storage
 [[kv_namespaces]]
 binding = "ANTI_BOT_KV"
-id = "009ad6dea9ed48cea0573d30207fe937"
+id = "NEW_KV_ID_FOR_ANTI_BOT_KV"
 
 [[kv_namespaces]]
 binding = "ACCESS_LOGS"
-id = "NEW_KV_ID_FOR_ACCESS_LOGS"  # Buat di dashboard
+id = "NEW_KV_ID_ACCES_LOGS"  # Buat di dashboard
 
 [[kv_namespaces]]
 binding = "ERROR_LOGS"
-id = "NEW_KV_ID_FOR_ERROR_LOGS"   # Buat di dashboard
+id = "NEW_KV_ID_ERROR_LOGS"   # Buat di dashboard
 
 [[kv_namespaces]]
 binding = "CONFIG_KV"
@@ -37,8 +37,8 @@ database_id = "NEW_D1_ID_FOR_ANALYTICS" # Buat di dashboard
 
 # Environment Variables
 [vars]
-TURNSTILE_SITE_KEY = "0x4AAAAAABlZpUYDUKYDODho"
-TURNSTILE_SECRET_KEY = "YOUR_SECRET_KEY_HERE"  # Dapatkan dari Turnstile
-HASH_SALT = "GENERATE_RANDOM_32_CHAR_STRING"   # Gunakan generator online
+TURNSTILE_SITE_KEY = ""
+TURNSTILE_SECRET_KEY = "" 
+HASH_SALT = ""   
 LANDING_URL = "https://your-landing-page.com"
 MAX_FAILED_CHALLENGES = "5"
